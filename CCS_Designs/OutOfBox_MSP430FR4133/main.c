@@ -67,8 +67,6 @@ char password[ROT_BUF_LEN] = {'2','4','6','8'};
 unsigned int rot_buf_ind = 0;
 
 
-
-
 void Key();
 void activate_alarm();
 void init_GPIO();
@@ -107,8 +105,8 @@ Timer_A_initUpModeParam initUpParam_A0 =
  * main.c
  */
 int main(void) {
-    // Stop Watchdog timer
     WDT_A_hold(__MSP430_BASEADDRESS_WDT_A__);     // Stop WDT
+	
     pressedKey = ' ';
     STATE = ARM_INPUT;
     int i;
@@ -123,24 +121,8 @@ int main(void) {
     _EINT();        // Start interrupt
     PMM_unlockLPM5();
 
-    displayScrollText("HI");
+    // displayScrollText("HI");
 
-//    //breaks if: 2 alarm_mask set AND SET LEDS
-//    if (alarm_mask[0]) GPIO_setOutputHighOnPin(LED1);
-//    else GPIO_setOutputLowOnPin(LED1);
-//
-//    if (alarm_mask[1]) GPIO_setOutputHighOnPin(LED2);
-//    else GPIO_setOutputLowOnPin(LED2);
-//
-//    if (alarm_mask[2]) GPIO_setOutputHighOnPin(LED3);
-//    else GPIO_setOutputLowOnPin(LED3);
-//
-//    if (alarm_mask[3]) GPIO_setOutputHighOnPin(LED4);
-//    else GPIO_setOutputLowOnPin(LED4);
-
-
-    arm_sensors();
-//    set_leds();
     while(1){
         if (STATE == ARM_INPUT){
             displayScrollText("1 TO 4 TO TOGGLE ZONES");
@@ -152,19 +134,12 @@ int main(void) {
             if (pressedKey == '0') arm_sensors();
         }
         if (STATE == SCANNING){
-//            showChar(alarm_mask[0]+48, pos1);
-//            showChar(alarm_mask[1]+48, pos2);
-//            showChar(alarm_mask[2]+48, pos3);
-//            showChar(alarm_mask[3]+48, pos4);
             showChar('S', pos1);
             showChar('C', pos2);
             showChar('A', pos3);
             showChar('N', pos4);
 
-            _delay_cycles(1000000);
-
-            //this  also did not work
-//            set_leds();
+            // _delay_cycles(1000000);
 
             if (alarm_mask[0]) measure_usd(USD1);
             if (alarm_mask[1]) measure_usd(USD2);
@@ -176,14 +151,7 @@ int main(void) {
             }
         }
     }
-
-    // LOOP MESSAGE "PRESS 1-4 TO ARM/DISARM"
-    // DURING LOOP, ACCEPT INTERRUPTS FROM KEYBOARD
-    // IF KEYPRESSED = '1' => TOGGLE ARM/DISARM OF LED1
-    // DURING LOOP, POLL ALL USDS THAT ARE ARMED
-    // IF ANY ALARM BIT IS SET, GO INTO ACTIVATE_ALARM
 }
-
 
 void arm_sensors(){
     long res;
@@ -211,7 +179,6 @@ void arm_sensors(){
 }
 
 long measure_usd(uint8_t port, uint16_t pin){
-//    int i;
     int index;
     if (pin == GPIO_PIN1) index = 0;
     else if (pin == GPIO_PIN0) index = 1;
@@ -234,7 +201,7 @@ long measure_usd(uint8_t port, uint16_t pin){
     _delay_cycles(10);  // for (i = 0; i < TRIG_CYCLE; i++){}
     GPIO_setOutputLowOnPin(USDT);
 
-
+	// WAIT FOR ECHO RESPONSE TO COMPLETE
     _delay_cycles(50000);
     GPIO_disableInterrupt(port, pin);
     expecting_USD = 0;
@@ -249,69 +216,6 @@ long measure_usd(uint8_t port, uint16_t pin){
 
     set_leds();
     return ans;
-}
-
-//    PMM_unlockLPM5();
-//    _EINT();        // Start interrupt
-//    PMM_unlockLPM5();
-//    _delay_cycles(10);
-
-
-#pragma vector = PORT1_VECTOR       // Using PORT1_VECTOR interrupt because P1.4 and P1.5 are in port 1
-__interrupt void PORT1_ISR(void)
-{
-    pressedKey = ' ';
-    Key();
-//    if (pressedKey == ' '){
-//    }
-
-    if (STATE == ALARM && pressedKey != ' '){
-
-        rot_buf[rot_buf_ind] = pressedKey;
-        rot_buf_ind = (rot_buf_ind + 1) % ROT_BUF_LEN;
-
-        int i;
-        int cnt = 0;
-        for(i = 0; i < 4; i++){
-            cnt += (rot_buf[i] == password[i]);
-        }
-        if (cnt == 4){
-            STATE = ARM_INPUT;
-        }
-
-    }
-
-    if (STATE == ARM_INPUT && pressedKey != ' '){
-        if (pressedKey == '1')      alarm_mask[0] ^= 1;
-        else if (pressedKey == '2') alarm_mask[1] ^= 1;
-        else if (pressedKey == '3') alarm_mask[2] ^= 1;
-        else if (pressedKey == '4') alarm_mask[3] ^= 1;
-        else if (pressedKey == '0') STATE = SCANNING;
-
-
-        //this guy has cancer
-        if (pressedKey >= '0' && pressedKey <= '4') set_leds();
-    } else if (STATE == SCANNING && pressedKey == '0'){
-        STATE = ARM_INPUT;
-    }
-
-
-    if (expecting_USD && pressedKey == ' '){
-        stop =Timer_A_getCounterValue(TIMER_A0_BASE);
-    }
-
-    GPIO_clearInterrupt(COL1);
-    GPIO_clearInterrupt(COL2);
-    GPIO_clearInterrupt(COL3);
-    GPIO_clearInterrupt(USD1);
-    GPIO_clearInterrupt(USD2);
-    GPIO_clearInterrupt(USD3);
-    GPIO_clearInterrupt(USD4);
-
-    GPIO_disableInterrupt(USD1);
-    GPIO_disableInterrupt(USD2);
-    GPIO_disableInterrupt(USD3);
-    GPIO_disableInterrupt(USD4);
 }
 
 
@@ -333,7 +237,6 @@ void activate_alarm()
 
     //P8.3 as output with module function
     GPIO_setAsPeripheralModuleFunctionOutputPin(PWM, GPIO_PRIMARY_MODULE_FUNCTION);
-    //PMM_unlockLPM5();
 
     //Start timer
     Timer_A_initUpModeParam param = {0};
@@ -358,12 +261,6 @@ void activate_alarm()
     _delay_cycles(20000);
 
     while(STATE == ALARM) {
-        // read keypad (button for demo) to see if we should break
-        if (GPIO_getInputPinValue(GPIO_PORT_P2, GPIO_PIN6) == GPIO_INPUT_PIN_LOW)
-            break;
-
-        // KEEP POLLING USDS AND UPDATING ALARM BITS
-
         // ONLY TOGGLE LEDS THAT ARE ARMED AND ALARMED
         if (count < 100){
             if (alarm_mask[0] && alarm_state[0]) GPIO_setOutputHighOnPin(LED1);
@@ -384,11 +281,11 @@ void activate_alarm()
 
         count++;
 
+		// DISPLAY PASSWORD INPUT BUFFER
         showChar(rot_buf[0], pos1);
         showChar(rot_buf[1], pos2);
         showChar(rot_buf[2], pos3);
         showChar(rot_buf[3], pos4);
-
     }
 
     // deactivate PWM
@@ -407,6 +304,61 @@ void activate_alarm()
     STATE = ARM_INPUT;
 }
 
+
+#pragma vector = PORT1_VECTOR    
+__interrupt void PORT1_ISR(void)
+{
+    pressedKey = ' ';
+    Key();
+
+	// PASSWORD HANDLING
+    if (STATE == ALARM && pressedKey != ' '){
+
+        rot_buf[rot_buf_ind] = pressedKey;
+        rot_buf_ind = (rot_buf_ind + 1) % ROT_BUF_LEN;
+
+        int i;
+        int cnt = 0;
+        for(i = 0; i < 4; i++){
+            cnt += (rot_buf[i] == password[i]);
+        }
+        if (cnt == 4){
+            STATE = ARM_INPUT;
+        }
+
+    }
+
+	// HANDLE INPUTS IN USER CONFIG MODE
+    if (STATE == ARM_INPUT && pressedKey != ' '){
+        if (pressedKey == '1')      alarm_mask[0] ^= 1;
+        else if (pressedKey == '2') alarm_mask[1] ^= 1;
+        else if (pressedKey == '3') alarm_mask[2] ^= 1;
+        else if (pressedKey == '4') alarm_mask[3] ^= 1;
+        else if (pressedKey == '0') STATE = SCANNING;
+
+        if (pressedKey >= '0' && pressedKey <= '4') set_leds();
+    } else if (STATE == SCANNING && pressedKey == '0'){
+        STATE = ARM_INPUT;
+    }
+
+	// HANDLE ECHO RESPONSE, LOWEST PRIORITY
+    if (expecting_USD && pressedKey == ' '){
+        stop = Timer_A_getCounterValue(TIMER_A0_BASE);
+    }
+
+    GPIO_clearInterrupt(COL1);
+    GPIO_clearInterrupt(COL2);
+    GPIO_clearInterrupt(COL3);
+    GPIO_clearInterrupt(USD1);
+    GPIO_clearInterrupt(USD2);
+    GPIO_clearInterrupt(USD3);
+    GPIO_clearInterrupt(USD4);
+
+    GPIO_disableInterrupt(USD1);
+    GPIO_disableInterrupt(USD2);
+    GPIO_disableInterrupt(USD3);
+    GPIO_disableInterrupt(USD4);
+}
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -527,7 +479,6 @@ void init_GPIO()
    GPIO_setOutputLowOnPin(LED2);
    GPIO_setOutputLowOnPin(LED3);
    GPIO_setOutputLowOnPin(LED4);
-//   PMM_unlockLPM5();
 
    // BUTTON 2 ON BOARD
    GPIO_setAsInputPinWithPullUpResistor(GPIO_PORT_P2, GPIO_PIN6);
@@ -535,7 +486,6 @@ void init_GPIO()
    // LED 2 ON BOARD
    GPIO_setAsOutputPin(GPIO_PORT_P4, GPIO_PIN0);
    GPIO_setOutputLowOnPin(GPIO_PORT_P4, GPIO_PIN0);
-//   PMM_unlockLPM5();
 }
 
 void init_ECHO(){
@@ -543,7 +493,6 @@ void init_ECHO(){
     // USD TRIG INIT
     GPIO_setAsOutputPin(USDT);
     GPIO_setOutputLowOnPin(USDT);
- //   PMM_unlockLPM5();
 
     // USD ECHO INTERRUPT INIT HIGH->LOW, initially disabled
     GPIO_setAsPeripheralModuleFunctionInputPin(USD1, GPIO_PRIMARY_MODULE_FUNCTION);
@@ -580,9 +529,8 @@ void init_KEY(){
    GPIO_setOutputLowOnPin(ROW2);
    GPIO_setOutputLowOnPin(ROW3);
    GPIO_setOutputLowOnPin(ROW4);
-//    PMM_unlockLPM5();
 
-//    // COLUMNS ARE ISR TRIGGERS
+   // COLUMNS ARE ISR TRIGGERS
    GPIO_setAsPeripheralModuleFunctionInputPin(COL1, GPIO_PRIMARY_MODULE_FUNCTION);     // Column 1: Input direction
    GPIO_selectInterruptEdge(COL1, GPIO_HIGH_TO_LOW_TRANSITION);
    GPIO_setAsInputPinWithPullUpResistor(COL1);
@@ -600,7 +548,6 @@ void init_KEY(){
    GPIO_setAsInputPinWithPullUpResistor(COL3);
    GPIO_clearInterrupt(COL3);
    GPIO_enableInterrupt(COL3);
-
 }
 
 void init_TIMER(){
